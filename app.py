@@ -78,19 +78,23 @@ def analyze_pdf():
     # Embed text chunks
     text= request.json.get("text")
     requirements = request.json.get("requirements", [])
+    print(f"Received text: ")  # Log first 100 characters for debugging
     chunks = splitter.split_text(text)
+    print("Text chunked")
     embeddings = embedding_model.embed_documents(chunks)
-
+    print("Done embedding")
     # Create a unique vector ID
     vector_id = uuid.uuid4().int >> 64  # Qdrant likes int IDs
     # Store average vector for simplicity (or store each chunk if needed)
     avg_vector = [sum(x) / len(x) for x in zip(*embeddings)]
+    print("vecotr and embedding created")
     #saving vector into qdrant
     qdrant.upload_points(collection_name=collection_name,points=[PointStruct(id=vector_id, vector=avg_vector)])
-    
+    print("Vector uploaded to Qdrant")
     formatted_prompt = score_prompt.format(resume=text, requirements=requirements)
+    print("Prompt formatted")
     response = llm.invoke(formatted_prompt)
-    
+    print("LLM invoked")
     return jsonify({
         "score": float(response.content.strip()),
         "qdrant_vector_id": vector_id,
