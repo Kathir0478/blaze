@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 import fitz  # PyMuPDF
 import os
 import uuid
@@ -36,6 +37,10 @@ llm = ChatGroq(temperature=0.2,model_name="LLaMA3-8b-8192",groq_api_key=GROQ_API
 splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
 # define vector store
 vectorstore=Qdrant(collection_name=collection_name,embeddings=embedding_model,client=qdrant)
+
+@app.route("/", methods=["GET"])
+def index():
+    return jsonify({"message": "Welcome to the PDF Analyzer API"}), 200
 
 @app.route("/analyze-pdf", methods=["POST"])
 def analyze_pdf():
@@ -87,4 +92,4 @@ def analyze_pdf():
     })
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True,port=5000)
