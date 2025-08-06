@@ -46,49 +46,49 @@ def index():
 def analyze_pdf():
     #file handling
 
-    # uploaded_file = request.files['file']
-    # requirements = request.form.getlist("requirements")
-    # if not uploaded_file or not requirements:
-    #     return jsonify({"error": "Missing file or requirements"}), 400
+    uploaded_file = request.files['file']
+    requirements = request.form.getlist("requirements")
+    if not uploaded_file or not requirements:
+        return jsonify({"error": "Missing file or requirements"}), 400
     # reading file
-    # file_bytes = uploaded_file.read()
-    # doc = fitz.open(stream=file_bytes, filetype="pdf")
-    # text = "".join([page.get_text() for page in doc])
+    file_bytes = uploaded_file.read()
+    doc = fitz.open(stream=file_bytes, filetype="pdf")
+    text = "".join([page.get_text() for page in doc])
 
-    # # Embed text chunks
-    # chunks = splitter.split_text(text)
-    # embeddings = embedding_model.embed_documents(chunks)
+    # Embed text chunks
+    chunks = splitter.split_text(text)
+    embeddings = embedding_model.embed_documents(chunks)
 
-    # # Create a unique vector ID
-    # vector_id = uuid.uuid4().int >> 64  # Qdrant likes int IDs
-    # # Store average vector for simplicity (or store each chunk if needed)
-    # avg_vector = [sum(x) / len(x) for x in zip(*embeddings)]
-    # #saving vector into qdrant
-    # qdrant.upload_points(collection_name=collection_name,points=[PointStruct(id=vector_id, vector=avg_vector)])
+    # Create a unique vector ID
+    vector_id = uuid.uuid4().int >> 64  # Qdrant likes int IDs
+    # Store average vector for simplicity (or store each chunk if needed)
+    avg_vector = [sum(x) / len(x) for x in zip(*embeddings)]
+    #saving vector into qdrant
+    qdrant.upload_points(collection_name=collection_name,points=[PointStruct(id=vector_id, vector=avg_vector)])
     
-    # joined_requirements = "\n".join(f"- {r}" for r in requirements)
-    # score_prompt = ChatPromptTemplate.from_template("""
-    #     You are a professional resume reviewer.
+    joined_requirements = "\n".join(f"- {r}" for r in requirements)
+    score_prompt = ChatPromptTemplate.from_template("""
+        You are a professional resume reviewer.
 
-    #     Here is a resume:
-    #     ---
-    #     {resume}
-    #     ---
+        Here is a resume:
+        ---
+        {resume}
+        ---
 
-    #     Here are the job requirements:
-    #     ---
-    #     {requirements}
-    #     ---
+        Here are the job requirements:
+        ---
+        {requirements}
+        ---
 
-    #     Give a score from 0 to 1 in decimal based on how well the resume matches the requirements. Be objective and provide only the score value.
-    # """)  
+        Give a score from 0 to 1 in decimal based on how well the resume matches the requirements. Be objective and provide only the score value.
+    """)  
     
-    # formatted_prompt = score_prompt.format(resume=text, requirements=joined_requirements)
-    # response = llm.invoke(formatted_prompt)
+    formatted_prompt = score_prompt.format(resume=text, requirements=joined_requirements)
+    response = llm.invoke(formatted_prompt)
     
     return jsonify({
-        # "score": float(response.content.strip()),
-        # "qdrant_vector_id": vector_id,
+        "score": float(response.content.strip()),
+        "qdrant_vector_id": vector_id,
         "status":200
     })
 
