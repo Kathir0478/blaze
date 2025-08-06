@@ -38,24 +38,46 @@ splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
 # define vector store
 vectorstore=Qdrant(collection_name=collection_name,embeddings=embedding_model,client=qdrant)
 
+score_prompt = ChatPromptTemplate.from_template("""
+    You are a professional resume reviewer.
+
+    Here is a resume:
+    ---
+    {resume}
+    ---
+
+    Here are the job requirements:
+    ---
+    {requirements}
+    ---
+
+    Give a score from 0 to 1 in decimal based on how well the resume matches the requirements. Be objective and provide only the score value.
+""")  
+    
 @app.route("/", methods=["GET"])
 def index():
     return jsonify({"message": "Welcome to the PDF Analyzer API"}), 200
 
-@app.route("/analyze-pdf", methods=["POST"])
-def analyze_pdf():
-    #file handling
 
+
+@app.route("/get-text", methods=["POST"])
+def get_text():
     uploaded_file = request.files['file']
     requirements = request.form.getlist("requirements")
     if not uploaded_file or not requirements:
-        return jsonify({"error": "Missing file or requirements"}), 400
+        return jsonify({"error": "No file provided"}), 400
     # reading file
     file_bytes = uploaded_file.read()
     doc = fitz.open(stream=file_bytes, filetype="pdf")
     text = "".join([page.get_text() for page in doc])
+    joined_requirements = "\n".join(f"- {r}" for r in requirements)
+    return jsonify({"text": text,"requirements":joined_requirements}), 200
 
+@app.route("/analyze-pdf", methods=["POST"])
+def analyze_pdf():
     # Embed text chunks
+    text= request.json.get("text")
+    requirements = request.json.get("requirements", [])
     chunks = splitter.split_text(text)
     embeddings = embedding_model.embed_documents(chunks)
 
@@ -66,24 +88,7 @@ def analyze_pdf():
     #saving vector into qdrant
     qdrant.upload_points(collection_name=collection_name,points=[PointStruct(id=vector_id, vector=avg_vector)])
     
-    joined_requirements = "\n".join(f"- {r}" for r in requirements)
-    score_prompt = ChatPromptTemplate.from_template("""
-        You are a professional resume reviewer.
-
-        Here is a resume:
-        ---
-        {resume}
-        ---
-
-        Here are the job requirements:
-        ---
-        {requirements}
-        ---
-
-        Give a score from 0 to 1 in decimal based on how well the resume matches the requirements. Be objective and provide only the score value.
-    """)  
-    
-    formatted_prompt = score_prompt.format(resume=text, requirements=joined_requirements)
+    formatted_prompt = score_prompt.format(resume=text, requirements=requirements)
     response = llm.invoke(formatted_prompt)
     
     return jsonify({
@@ -91,6 +96,40 @@ def analyze_pdf():
         "qdrant_vector_id": vector_id,
         "status":200
     })
+
+
+
+# @app.route("/analyze-pdf", methods=["POST"])
+# def analyze_pdf():
+#     uploaded_file = request.files['file']
+#     requirements = request.form.getlist("requirements")
+#     if not uploaded_file or not requirements:
+#         return jsonify({"error": "Missing file or requirements"}), 400
+#     # reading file
+#     file_bytes = uploaded_file.read()
+#     doc = fitz.open(stream=file_bytes, filetype="pdf")
+#     text = "".join([page.get_text() for page in doc])
+
+#     # Embed text chunks
+#     chunks = splitter.split_text(text)
+#     embeddings = embedding_model.embed_documents(chunks)
+
+#     # Create a unique vector ID
+#     vector_id = uuid.uuid4().int >> 64  # Qdrant likes int IDs
+#     # Store average vector for simplicity (or store each chunk if needed)
+#     avg_vector = [sum(x) / len(x) for x in zip(*embeddings)]
+#     #saving vector into qdrant
+#     qdrant.upload_points(collection_name=collection_name,points=[PointStruct(id=vector_id, vector=avg_vector)])
+    
+#     joined_requirements = "\n".join(f"- {r}" for r in requirements)
+#     formatted_prompt = score_prompt.format(resume=text, requirements=joined_requirements)
+#     response = llm.invoke(formatted_prompt)
+    
+#     return jsonify({
+#         "score": float(response.content.strip()),
+#         "qdrant_vector_id": vector_id,
+#         "status":200
+#     })
 
 if __name__ == "__main__":
     app.run(debug=True)
