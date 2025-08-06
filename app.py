@@ -27,8 +27,9 @@ qdrant = QdrantClient(url=QDRANT_HOST, api_key=QDRANT_API_KEY)
 collection_name = "pdf_vectors"
 
 # Ensure collection exists
-qdrant.recreate_collection(collection_name=collection_name,vectors_config=VectorParams(size=768, distance=Distance.COSINE))
-
+# qdrant.recreate_collection(collection_name=collection_name,vectors_config=VectorParams(size=768, distance=Distance.COSINE))
+if not qdrant.collection_exists(collection_name=collection_name):
+    qdrant.create_collection(collection_name=collection_name,vectors_config=VectorParams(size=768, distance=Distance.COSINE))
 # Init Embedding Model
 embedding_model = GoogleGenerativeAIEmbeddings(model="models/embedding-001",google_api_key=GOOGLE_API_KEY)
 # chat model
