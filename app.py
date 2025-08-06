@@ -86,8 +86,8 @@ def analyze_pdf():
     response = llm.invoke(formatted_prompt)
     
     return jsonify({
-        "score": float(response.content.strip()),
-        "qdrant_vector_id": vector_id,
+        # "score": float(response.content.strip()),
+        # "qdrant_vector_id": vector_id,
         "status":200
     })
 
