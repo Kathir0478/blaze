@@ -1,9 +1,10 @@
 from flask import Flask, request, jsonify
 import fitz  # PyMuPDF
 import os
+import uuid
 from dotenv import load_dotenv
 from qdrant_client import QdrantClient
-from qdrant_client.models import PointStruct, VectorParams, Distance,Filter,FieldCondition,MatchValue
+from qdrant_client.models import PointStruct, VectorParams, Distance,Filter,FieldCondition,MatchValue,PayloadSchemaType
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_community.document_loaders import WebBaseLoader
@@ -15,7 +16,6 @@ import prompttemplate
 load_dotenv()
 app = Flask(__name__)
 
-# Load env vars
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
 QDRANT_HOST = os.getenv("QDRANT_HOST")
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
@@ -33,16 +33,14 @@ if not qdrant.collection_exists(collection_name=BOTS_COLLECTION):
     qdrant.create_payload_index(
         collection_name=BOTS_COLLECTION,
         field_name="record_id",
-        field_schema="integer"
+        field_schema=PayloadSchemaType.INTEGER
     )
 
 embedding_model = GoogleGenerativeAIEmbeddings(model="models/embedding-001",google_api_key=GOOGLE_API_KEY)
 
 llm = ChatGroq(temperature=0,model_name="LLaMA3-8b-8192",groq_api_key=GROQ_API_KEY)  
 
-splitter = RecursiveCharacterTextSplitter(chunk_size=256, chunk_overlap=64)
-
-# vectorstore=Qdrant(collection_name=TASK_COLLECTION,embeddings=embedding_model,client=qdrant)
+splitter = RecursiveCharacterTextSplitter(chunk_size=512, chunk_overlap=128)
 
 @app.route("/", methods=["GET"])
 def index():
@@ -189,126 +187,133 @@ def validate_problem():
         "status": 200
     })
 
-# @app.route("/assign-task",methods=["POST"])
-# def assign_task():
-#     data = request.json
-#     point_id = data.get("point_id")
+@app.route("/assign-task",methods=["POST"])
+def assign_task():
+    data = request.json
+    record_id = data.get("record_id")
 
-#     result = qdrant.retrieve(
-#         collection_name=TASK_COLLECTION,
-#         ids=[point_id]
-#     )
-#     if result is None:
-#         return jsonify({"error": "Point not found"}), 404
-#     return jsonify({
-#         "task": result[0].payload.get("task"),
-#         "description": result[0].payload.get("description"),
-#         "requirements": result[0].payload.get("requirements"),
-#         "deliverables": result[0].payload.get("deliverables"),
-#         "status": 200
-#     })
+    result = qdrant.retrieve(
+        collection_name=TASK_COLLECTION,
+        ids=[record_id]
+    )
 
-# @app.route("/create-chatbot", methods=["POST"])
-# def create_chatbot():
-#     data = request.json
-#     websites = data.get("websites", [])
-#     user_id = data.get("user_id")
+    if result is None:
+        return jsonify({"error": "Point not found","status":404})
+    
+    return jsonify({
+        "task": result[0].payload.get("task"),
+        "description": result[0].payload.get("description"),
+        "requirements": result[0].payload.get("requirements"),
+        "deliverables": result[0].payload.get("deliverables"),
+        "status": 200
+    })
 
-#     if not websites or not user_id:
-#         return jsonify({"error": "Missing websites or user_id"}), 400
+@app.route("/create-chatbot", methods=["POST"])
+def create_chatbot():
+    data = request.json
+    websites = data.get("websites", [])
+    record_id = data.get("record_id")
 
-#     loader = WebBaseLoader(websites)
-#     docs = loader.load()
+    if not websites or not record_id:
+        return jsonify({"error": "Missing websites or user_id","status":400})
 
-#     chunks = embed_splitter.split_documents(docs)
+    loader = WebBaseLoader(websites)
+    docs = loader.load()
 
-#     # # Step 4: Embed and upload
-#     points = []
-#     for idx, chunk in enumerate(chunks):
-#         vector = embedding_model.embed_query(chunk.page_content)
-#         points.append(PointStruct(
-#             id=uuid.uuid4().int >> 64,
-#             vector=vector,
-#             payload={"point_id":int(user_id),"content": chunk.page_content}
-#         ))
+    chunks = splitter.split_documents(docs)
 
-#     qdrant.upsert(
-#         collection_name=BOTS_COLLECTION,
-#         points=points
-#     )
+    points = []
+    for chunk in chunks:
+        vector = embedding_model.embed_query(chunk.page_content)
+        points.append(PointStruct(
+            id=uuid.uuid4().int >> 64,
+            vector=vector,
+            payload={"record_id":int(record_id),"content": chunk.page_content}
+        ))
 
-#     return jsonify({"status": 200,"points_added": len(points)})
+    qdrant.upsert(
+        collection_name=BOTS_COLLECTION,
+        points=points
+    )
 
-# @app.route("/ask-query", methods=["POST"])
-# def ask_query():
-#     data = request.json
-#     point_id = data.get("point_id")
-#     query = data.get("query")
+    return jsonify({"status": 200,"points_added": len(points)})
 
-#     if not point_id or not query:
-#         return jsonify({"error": "point_id and query are required"}), 400
+@app.route("/query-chatbot", methods=["POST"])
+def query_chatbot():
+    data = request.json
+    record_id = data.get("record_id")
+    query = data.get("query")
 
-#     query_vector = embedding_model.embed_query(query)
+    if not record_id or not query:
+        return jsonify({"error": "point_id and query are required","status":400})
 
-#     search_result = qdrant.search(
-#         collection_name=BOTS_COLLECTION,
-#         query_vector=query_vector,
-#         limit=10,
-#         query_filter=Filter(
-#             must=[FieldCondition(
-#                 key="point_id",
-#                 match=MatchValue(value=int(point_id))
-#             )]
-#         )
-#     )
+    query_vector = embedding_model.embed_query(query)
 
-#     context_texts = [hit.payload["content"] for hit in search_result]
-#     context = "\n\n".join(context_texts)
-#     formatted_prompt = prompttemplate.chat_prompt.format(
-#         user_query=query,
-#         context=context
-#     )
-#     response = llm.invoke(formatted_prompt)
-#     parsed= stringtojson.llm_response_to_json(response.content.strip())
-#     return jsonify({
-#         "response": parsed.get("response"),
-#         "status": 200
-#     })
+    search_result = qdrant.search(
+        collection_name=BOTS_COLLECTION,
+        query_vector=query_vector,
+        limit=15,
+        query_filter=Filter(
+            must=[FieldCondition(
+                key="record_id",
+                match=MatchValue(value=int(record_id))
+            )]
+        )
+    )
 
-# @app.route("/report-generator", methods=["POST"])
-# def report_generator():
-#     data = request.json
-#     point_id = data.get("point_id")
-#     coded_snippet= data.get("coded_snippet")
-#     if not point_id:
-#         return jsonify({"error": "point_id is required"}), 400
+    context_texts = [hit.payload["content"] for hit in search_result]
+    context = "\n\n".join(context_texts)
 
-#     task = qdrant.retrieve(
-#         collection_name=TASK_COLLECTION,
-#         ids=[point_id]
-#     )
-#     if not task:
-#         return jsonify({"error": "Point not found"}), 404
+    formatted_prompt = prompttemplate.query_chatbot_prompt.format(
+        user_query=query,
+        context=context
+    )
 
-#     task_data = task[0].payload
+    response = llm.invoke(formatted_prompt)
 
-#     formatted_prompt = prompttemplate.report_prompt.format(
-#         task=task_data.get("task"),
-#         description=task_data.get("description"),
-#         requirements=task_data.get("requirements"),
-#         deliverables= task_data.get("deliverables"),
-#         code_snippet=coded_snippet
-#     )
+    parsed= stringtojson.llm_response_json_converter(response.content.strip())
 
-#     response = llm.invoke(formatted_prompt)
-#     print(response.content.strip())
-#     parsed = stringtojson.parse_report_generator_output(response.content.strip())
+    return jsonify({
+        "response": parsed.get("response"),
+        "status": 200
+    })
 
-#     return jsonify({
-#         "report": parsed.get("report"),
-#         "score": parsed.get("score"),
-#         "status": 200
-#     })
+@app.route("/report-generator", methods=["POST"])
+def report_generator():
+
+    data = request.json
+    record_id = data.get("record_id")
+    coded_snippet= data.get("coded_snippet")
+
+    if not record_id:
+        return jsonify({"error": "point_id is required","status":400})
+
+    task = qdrant.retrieve(
+        collection_name=TASK_COLLECTION,
+        ids=[record_id]
+    )
+    if not task:
+        return jsonify({"error": "Point not found","status":404})
+
+    task_data = task[0].payload
+
+    formatted_prompt = prompttemplate.report_prompt.format(
+        task=task_data.get("task"),
+        description=task_data.get("description"),
+        requirements=task_data.get("requirements"),
+        deliverables= task_data.get("deliverables"),
+        code_snippet=coded_snippet
+    )
+
+    response = llm.invoke(formatted_prompt)
+    
+    parsed = stringtojson.report_response_json_converter(response.content.strip())
+
+    return jsonify({
+        "report": parsed.get("report"),
+        "score": parsed.get("score"),
+        "status": 200
+    })
 
 if __name__ == "__main__":
     app.run(debug=True)

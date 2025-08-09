@@ -173,7 +173,7 @@ validate_problem_prompt = ChatPromptTemplate.from_template(
     Errors: {{error scores}}
 """)
 
-chat_prompt=ChatPromptTemplate.from_template(
+query_chatbot_prompt=ChatPromptTemplate.from_template(
 """
 You are a documentation chatbot.
 You will receive a:
@@ -199,30 +199,30 @@ Strictly follow the output format and do not provide any extra details or header
 
 report_prompt = ChatPromptTemplate.from_template(
 """
-You are a professional report generator.
-You will receive:
-1. Task description.
-2. Task requirements.
-3. Task deliverables.
-4. Code snippet provided by the user.
+    You are a professional report generator.
+    You will receive:
+    1. Task description.
+    2. Task requirements.
+    3. Task deliverables.
+    4. Code snippet provided by the user.
 
-Your task:
-- Generate a comprehensive report on the code snippet based on the provided task description, requirements, and deliverables.
-- Ensure the report is well-structured and covers all aspects of the task considering the code snippet.
-- The report should be clear, concise, and easy to understand.
-- Give a score based on the quality of the code snippet provided and the task being achieved.
----
-INPUT:
-Task: {task}
-Description: {description}
-Requirements: {requirements}
-Deliverables: {deliverables}
-Code Snippet: {code_snippet}
----
-OUTPUT FORMAT:
-Report: {{report}}
-Score: {{score}} (0-100)
+    Your task:
+    - Generate a comprehensive report on the code snippet based on the provided task description, requirements, and deliverables.
+    - Ensure the report is well-structured and covers all aspects of the task considering the code snippet.
+    - The report should be clear, concise, and easy to understand.
+    - Give a score based on the quality of the code snippet provided and the task being achieved.
+    ---
+    INPUT:
+    Task: {task}
+    Description: {description}
+    Requirements: {requirements}
+    Deliverables: {deliverables}
+    Code Snippet: {code_snippet}
+    ---
+    OUTPUT FORMAT:
+    Report: {{report}}
+    Score: {{score}} (0-100)
 
-Strictly follow the output format and do not provide any extra details or headers.
+    Strictly follow the output format and do not provide any extra details or headers.
 """
 )

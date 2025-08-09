@@ -170,7 +170,7 @@ def validate_problem_json_converter(text: str) -> dict:
 
     return result
 
-def llm_response_to_json(llm_text: str) -> dict:
+def llm_response_json_converter(llm_text: str) -> dict:
     match = re.match(r"^Response:\s*(.*)", llm_text.strip(), re.IGNORECASE | re.DOTALL)
     if match:
         response_content = match.group(1).strip()
@@ -179,7 +179,7 @@ def llm_response_to_json(llm_text: str) -> dict:
 
     return {"response": response_content}
 
-def parse_report_generator_output(llm_text: str) -> dict:
+def report_response_json_converter(llm_text: str) -> dict:
     text = llm_text.strip()
 
     pattern = r"^Report:\s*(.*?)\s*Score:\s*(\d{1,3})\s*(?:\(0-100\))?$"
