@@ -48,11 +48,13 @@ def index():
 
 @app.route("/analyze-pdf", methods=["POST"])
 def analyze_pdf():
-    # Embed text chunks
+
     uploaded_file = request.files['file']
     requirements = request.form.getlist("requirements")
     record_id = request.form.get("record_id")
     record_id = int(record_id)
+    question_count=request.form.get("question_count")
+
     if not uploaded_file or not requirements:
         return jsonify({"error": "No file provided","status":400})
 
@@ -63,7 +65,8 @@ def analyze_pdf():
 
     formatted_prompt = prompttemplate.analyze_pdf_prompt.format(
         resume=text, 
-        requirements=joined_requirements
+        requirements=joined_requirements,
+        question_count=question_count
     )
     
     response = llm.invoke(formatted_prompt)
@@ -75,7 +78,8 @@ def analyze_pdf():
             "requirements": parsed.get("requirements", []),
             "task": parsed.get("task", "No task provided"),
             "description": parsed.get("description", "No description provided"),
-            "deliverables": parsed.get("deliverables", [])
+            "deliverables": parsed.get("deliverables", []),
+            "communications": parsed.get("communications",[])
         }
     )])
     
@@ -184,6 +188,48 @@ def validate_problem():
         "report": parsed.get("report"),
         "score": parsed.get("score"),
         "errors": parsed.get("errors"),
+        "status": 200
+    })
+
+@app.route("/communication-round",methods=["POST"])
+def communication_round():
+    data = request.json
+    record_id = data.get("record_id")
+
+    result = qdrant.retrieve(
+        collection_name=TASK_COLLECTION,
+        ids=[record_id]
+    )
+
+    if result is None:
+        return jsonify({"error": "Point not found","status":404})
+    
+    return jsonify({
+        "communication_qn":result[0].payload.get("communications"),
+        "status": 200
+    })
+
+@app.route("/communication-report",methods=["POST"])
+def communication_report():
+
+    data = request.json
+    communications=data.get("communications",[])
+    text=data.get("text")
+
+    if not communications or not text:
+        return jsonify({"error": "point_id is required","status":400})
+
+    formatted_prompt = prompttemplate.communication_round_report_prompt.format(
+        communications=communications,
+        text=text
+    )
+
+    response = llm.invoke(formatted_prompt)
+    
+    parsed = stringtojson.communication_report_json_converter(response.content.strip())
+
+    return jsonify({
+        "report": parsed.get("report"),
         "status": 200
     })
 

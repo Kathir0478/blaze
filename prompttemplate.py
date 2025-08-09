@@ -7,6 +7,7 @@ analyze_pdf_prompt = ChatPromptTemplate.from_template(
     You will receive:
     1. A candidate's resume.
     2. Job requirements for a specific position.
+    3. Question count for communication questions.
                                                     
     Your task:
     - Analyze the resume against the job requirements.
@@ -14,11 +15,14 @@ analyze_pdf_prompt = ChatPromptTemplate.from_template(
     - Create a open book vibe coding task for the candidate to complete based on the resume and job requirements.
     - Well defined task with description that is relevant to the job requirements and the candidate's skills.
     - The provided must contains task,description,requirements,deliverables.
+    - Create a detailed and perfect questions (general and Resume relateed) for communication round.
+    - Create {question_count} questions from beginner to advanced level to test the candidate communication level. 
     ---
 
     INPUT:
     Resume: {resume}
     Job Requirements: {requirements}
+    Question Count: {question_count}
     ---
                                                     
     OUTPUT FORMAT:
@@ -28,6 +32,7 @@ analyze_pdf_prompt = ChatPromptTemplate.from_template(
     Description: {{description}}
     Requirements: {{requirements}}
     Deliverables: {{deliverables}}
+    Communications: {{communication questions}}
                                                     
     Your response format (strictly follow this format no extra details and headers)
 """)
@@ -109,6 +114,31 @@ aptitude_round_prompt = ChatPromptTemplate.from_template(
     - Do NOT include any headers, explanations, or additional commentary.
     - Do NOT skip any numbers in sequence.
     - The output must contain exactly {question_count} questions.
+
+"""
+)
+
+communication_round_report_prompt = ChatPromptTemplate.from_template(
+"""
+
+You are a professional report generator for communication round.
+
+You will receive:
+1. Communication questions.
+2. Text transcription.
+
+Your task:
+- Generate a comprehensive report on the text transcription based on the provided questions.
+- Ensure the report is well-structured and covers all aspects of the communication round.
+- The report should be clear, concise, and easy to understand.
+
+---
+INPUT:
+Communication Questions: {communications}
+Text transcription: {text}
+---
+Strictly output in the exact format below (no extra text, no headers, no explanations):
+Report: {{report}}
 
 """
 )

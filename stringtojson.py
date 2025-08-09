@@ -2,38 +2,40 @@ import re
 
 def analyze_pdf_json_converter(llm_response: str):
 
-    # Extract score
     score_match = re.search(r"Score\s*:\s*([0-1](?:\.\d+)?|\.\d+)", llm_response, re.IGNORECASE)
     score_val = float(score_match.group(1)) if score_match else None
 
-    # Extract task
     task_match = re.search(r"Task\s*:\s*(.+?)(?=\n\s*Description\s*:|$)", llm_response, re.IGNORECASE | re.DOTALL)
     task_text = task_match.group(1).strip() if task_match else None
 
-    # Extract description
     desc_match = re.search(r"Description\s*:\s*(.+?)(?=\n\s*Requirements\s*:|$)", llm_response, re.IGNORECASE | re.DOTALL)
     description_text = desc_match.group(1).strip() if desc_match else None
 
-    # Extract requirements as list
     req_match = re.search(r"Requirements\s*:\s*(.+?)(?=\n\s*Deliverables\s*:|$)", llm_response, re.IGNORECASE | re.DOTALL)
     requirements_list = []
     if req_match:
         raw_reqs = req_match.group(1).strip()
         requirements_list = [line.lstrip("*").strip() for line in raw_reqs.splitlines() if line.strip().startswith("*")]
 
-    # Extract deliverables as list
-    deliv_match = re.search(r"Deliverables\s*:\s*(.+)", llm_response, re.IGNORECASE | re.DOTALL)
+    deliv_match = re.search(r"Deliverables\s*:\s*(.+?)(?=\n\s*Communications\s*:|$)", llm_response, re.IGNORECASE | re.DOTALL)
     deliverables_list = []
     if deliv_match:
         raw_delivs = deliv_match.group(1).strip()
         deliverables_list = [line.lstrip("*").strip() for line in raw_delivs.splitlines() if line.strip().startswith("*")]
+
+    comm_match = re.search(r"Communications\s*:\s*(.+)", llm_response, re.IGNORECASE | re.DOTALL)
+    communication_questions = []
+    if comm_match:
+        raw_comms = comm_match.group(1).strip()
+        communication_questions = [line.lstrip("*").strip() for line in raw_comms.splitlines() if line.strip()]
 
     return {
         "score": score_val,
         "task": task_text,
         "description": description_text,
         "requirements": requirements_list,
-        "deliverables": deliverables_list
+        "deliverables": deliverables_list,
+        "communications": communication_questions
     }
 
 def technical_round_json_converter(raw_output: str):
@@ -115,6 +117,14 @@ def aptitude_round_json_converter(llm_text: str) -> list:
         })
     
     return parsed_questions
+
+def communication_report_json_converter(llm_response:str):
+    report_match = re.search(r"Report\s*:\s*(.+)", llm_response, re.IGNORECASE | re.DOTALL)
+    report_text = report_match.group(1).strip() if report_match else None
+
+    return {
+        "report": report_text
+    }
 
 def problem_round_json_converter(text: str):
     problems = []
