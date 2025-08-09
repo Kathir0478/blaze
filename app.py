@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify
-import fitz  # PyMuPDF
+import fitz 
 import os
 import uuid
 from dotenv import load_dotenv
@@ -8,13 +8,13 @@ from qdrant_client.models import PointStruct, VectorParams, Distance,Filter,Fiel
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_community.document_loaders import WebBaseLoader
-from langchain_community.vectorstores import Qdrant 
 from langchain_groq import ChatGroq
-import stringtojson
-import prompttemplate
+import stringToJSON
+import promptTemplate
+
+app = Flask(__name__)
 
 load_dotenv()
-app = Flask(__name__)
 
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
 QDRANT_HOST = os.getenv("QDRANT_HOST")
@@ -42,28 +42,38 @@ llm = ChatGroq(temperature=0,model_name="LLaMA3-8b-8192",groq_api_key=GROQ_API_K
 
 splitter = RecursiveCharacterTextSplitter(chunk_size=512, chunk_overlap=128)
 
+
 @app.route("/", methods=["GET"])
 def index():
-    return jsonify({"message": "Welcome to the PDF Analyzer API","status": 200})
+    return jsonify({"message": "Welcome to AICruit"}),200
 
 @app.route("/analyze-pdf", methods=["POST"])
 def analyze_pdf():
 
-    uploaded_file = request.files['file']
+    uploaded_file = request.files.get("file")
     requirements = request.form.getlist("requirements")
     record_id = request.form.get("record_id")
-    record_id = int(record_id)
     question_count=request.form.get("question_count")
 
-    if not uploaded_file or not requirements:
-        return jsonify({"error": "No file provided","status":400})
+    if not uploaded_file:
+        return jsonify({"error": "No file provided"}) , 400
+
+    if not requirements:
+        return jsonify({"error": "No requirements provided"}) , 400
+    
+    if not record_id:
+        return jsonify({"error": "No record_id provided"}) , 400
+    
+    if not question_count:
+        return jsonify({"error": "No question_count provided"}) , 400
 
     file_bytes = uploaded_file.read()
     doc = fitz.open(stream=file_bytes, filetype="pdf")
     text = "".join([page.get_text() for page in doc])
     joined_requirements = "\n".join(f"- {r}" for r in requirements)
+    record_id=int(record_id)
 
-    formatted_prompt = prompttemplate.analyze_pdf_prompt.format(
+    formatted_prompt = promptTemplate.analyze_pdf_prompt.format(
         resume=text, 
         requirements=joined_requirements,
         question_count=question_count
@@ -71,7 +81,7 @@ def analyze_pdf():
     
     response = llm.invoke(formatted_prompt)
 
-    parsed = stringtojson.analyze_pdf_json_converter(response.content.strip())
+    parsed = stringToJSON.analyze_pdf_json_converter(response.content.strip())
 
     qdrant.upload_points(collection_name=TASK_COLLECTION,points=[PointStruct(id=record_id,vector=embedding_model.embed_query(text),
         payload={
@@ -85,9 +95,8 @@ def analyze_pdf():
     
 
     return jsonify({
-        "score": parsed.get("score"),
-        "status":200
-    })
+        "score": parsed.get("score")
+    }) , 200
 
 @app.route("/technical-round",methods=["POST"])
 def technical_round():
@@ -97,12 +106,12 @@ def technical_round():
     allowed_types = data.get("allowed_types")
     difficulty_level = data.get("difficulty_level")
 
-    if not list_of_domains or question_count <= 0:
-        return jsonify({"error": "Invalid input","status":400})
+    if not list_of_domains or question_count <= 0 or not allowed_types or not difficulty_level:
+        return jsonify({"error": "Invalid input"}) , 400
 
     list_of_domains=", ".join(list_of_domains)
 
-    formatted_prompt = prompttemplate.technical_round_prompt.format(
+    formatted_prompt = promptTemplate.technical_round_prompt.format(
         list_of_domains=list_of_domains,
         question_count=question_count,
         allowed_types=allowed_types,
@@ -111,12 +120,11 @@ def technical_round():
 
     response = llm.invoke(formatted_prompt)
 
-    parsed = stringtojson.technical_round_json_converter(response.content.strip())
+    parsed = stringToJSON.technical_round_json_converter(response.content.strip())
 
     return jsonify({
-        "questions": parsed, 
-        "status": 200
-    })
+        "questions": parsed
+    }) , 200
 
 @app.route("/aptitude-round",methods=["POST"])
 def aptitude_round():
@@ -125,22 +133,21 @@ def aptitude_round():
     question_count = data.get("question_count")
     difficulty_level = data.get("difficulty_level")
 
-    if question_count <= 0:
-        return jsonify({"error": "Invalid input","status":400})
+    if question_count <= 0 or not difficulty_level:
+        return jsonify({"error": "Invalid input"}) , 400
     
-    formatted_prompt = prompttemplate.aptitude_round_prompt.format(
+    formatted_prompt = promptTemplate.aptitude_round_prompt.format(
         question_count=question_count,
         difficulty_level=difficulty_level
     )
 
     response = llm.invoke(formatted_prompt)
-    print(response.content.strip())
-    parsed = stringtojson.aptitude_round_json_converter(response.content.strip())
+    
+    parsed = stringToJSON.aptitude_round_json_converter(response.content.strip())
 
     return jsonify({
-        "questions": parsed, 
-        "status": 200
-    })
+        "questions": parsed
+    }) , 200
 
 @app.route("/problem-round", methods=["POST"])
 def problem_round():
@@ -149,19 +156,21 @@ def problem_round():
     question_count = data.get("question_count")
     difficulty_rating = data.get("difficulty_rating")
 
-    formatted_prompt = prompttemplate.problem_round_prompt.format(
+    if question_count <= 0 or not difficulty_rating:
+        return jsonify({"error": "Invalid input"}) , 400
+
+    formatted_prompt = promptTemplate.problem_round_prompt.format(
         question_count=question_count, 
         difficulty_rating=difficulty_rating
     )
 
     response = llm.invoke(formatted_prompt)
 
-    parsed = stringtojson.problem_round_json_converter(response.content.strip())
+    parsed = stringToJSON.problem_round_json_converter(response.content.strip())
 
     return jsonify({
-        "questions": parsed, 
-        "status": 200
-    })
+        "questions": parsed
+    }) , 200
 
 @app.route("/validate-problem", methods=["POST"])
 def validate_problem():
@@ -171,10 +180,10 @@ def validate_problem():
     problem_statement = data.get("problem_statement")
     language = data.get("language")
 
-    if not code_snippet or not problem_statement:
-        return jsonify({"error": "Invalid input","status":400})
+    if not code_snippet or not problem_statement or not language:
+        return jsonify({"error": "Invalid input"}) , 400
 
-    formatted_prompt = prompttemplate.validate_problem_prompt.format(
+    formatted_prompt = promptTemplate.validate_problem_prompt.format(
         code_snippet=code_snippet,
         problem_statement=problem_statement,
         language=language
@@ -182,20 +191,22 @@ def validate_problem():
 
     response = llm.invoke(formatted_prompt)
 
-    parsed= stringtojson.validate_problem_json_converter(response.content.strip())
+    parsed= stringToJSON.validate_problem_json_converter(response.content.strip())
 
     return jsonify({
         "report": parsed.get("report"),
         "score": parsed.get("score"),
-        "errors": parsed.get("errors"),
-        "status": 200
-    })
+        "errors": parsed.get("errors")
+    }) , 200
 
 @app.route("/communication-round",methods=["POST"])
 def communication_round():
     data = request.json
     record_id = data.get("record_id")
 
+    if not record_id:
+        return jsonify({"error": "Provide record_id"}) , 400
+    
     result = qdrant.retrieve(
         collection_name=TASK_COLLECTION,
         ids=[record_id]
@@ -205,9 +216,8 @@ def communication_round():
         return jsonify({"error": "Point not found","status":404})
     
     return jsonify({
-        "communication_qn":result[0].payload.get("communications"),
-        "status": 200
-    })
+        "communication_qn":result[0].payload.get("communications")
+    }) , 200
 
 @app.route("/communication-report",methods=["POST"])
 def communication_report():
@@ -217,26 +227,28 @@ def communication_report():
     text=data.get("text")
 
     if not communications or not text:
-        return jsonify({"error": "point_id is required","status":400})
+        return jsonify({"error": "point_id is required"}) , 400
 
-    formatted_prompt = prompttemplate.communication_round_report_prompt.format(
+    formatted_prompt = promptTemplate.communication_round_report_prompt.format(
         communications=communications,
         text=text
     )
 
     response = llm.invoke(formatted_prompt)
     
-    parsed = stringtojson.communication_report_json_converter(response.content.strip())
+    parsed = stringToJSON.communication_report_json_converter(response.content.strip())
 
     return jsonify({
-        "report": parsed.get("report"),
-        "status": 200
-    })
+        "report": parsed.get("report")
+    }) , 200
 
 @app.route("/assign-task",methods=["POST"])
 def assign_task():
     data = request.json
     record_id = data.get("record_id")
+
+    if not record_id:
+        return jsonify({"error": "Prodvide record_id"}) , 400
 
     result = qdrant.retrieve(
         collection_name=TASK_COLLECTION,
@@ -244,15 +256,14 @@ def assign_task():
     )
 
     if result is None:
-        return jsonify({"error": "Point not found","status":404})
+        return jsonify({"error": "Point not found"}) , 404
     
     return jsonify({
         "task": result[0].payload.get("task"),
         "description": result[0].payload.get("description"),
         "requirements": result[0].payload.get("requirements"),
-        "deliverables": result[0].payload.get("deliverables"),
-        "status": 200
-    })
+        "deliverables": result[0].payload.get("deliverables")
+    }) , 200
 
 @app.route("/create-chatbot", methods=["POST"])
 def create_chatbot():
@@ -261,7 +272,7 @@ def create_chatbot():
     record_id = data.get("record_id")
 
     if not websites or not record_id:
-        return jsonify({"error": "Missing websites or user_id","status":400})
+        return jsonify({"error": "Missing websites or user_id"}) , 400
 
     loader = WebBaseLoader(websites)
     docs = loader.load()
@@ -282,7 +293,7 @@ def create_chatbot():
         points=points
     )
 
-    return jsonify({"status": 200,"points_added": len(points)})
+    return jsonify({"points_added": len(points)}) , 200
 
 @app.route("/query-chatbot", methods=["POST"])
 def query_chatbot():
@@ -291,7 +302,7 @@ def query_chatbot():
     query = data.get("query")
 
     if not record_id or not query:
-        return jsonify({"error": "point_id and query are required","status":400})
+        return jsonify({"error": "Invalid input"}) , 400
 
     query_vector = embedding_model.embed_query(query)
 
@@ -310,19 +321,18 @@ def query_chatbot():
     context_texts = [hit.payload["content"] for hit in search_result]
     context = "\n\n".join(context_texts)
 
-    formatted_prompt = prompttemplate.query_chatbot_prompt.format(
+    formatted_prompt = promptTemplate.query_chatbot_prompt.format(
         user_query=query,
         context=context
     )
 
     response = llm.invoke(formatted_prompt)
 
-    parsed= stringtojson.llm_response_json_converter(response.content.strip())
+    parsed= stringToJSON.llm_response_json_converter(response.content.strip())
 
     return jsonify({
-        "response": parsed.get("response"),
-        "status": 200
-    })
+        "response": parsed.get("response")
+    }) , 200
 
 @app.route("/report-generator", methods=["POST"])
 def report_generator():
@@ -331,19 +341,19 @@ def report_generator():
     record_id = data.get("record_id")
     coded_snippet= data.get("coded_snippet")
 
-    if not record_id:
-        return jsonify({"error": "point_id is required","status":400})
+    if not record_id or not coded_snippet:
+        return jsonify({"error": "Invalid input"}) , 400
 
     task = qdrant.retrieve(
         collection_name=TASK_COLLECTION,
         ids=[record_id]
     )
     if not task:
-        return jsonify({"error": "Point not found","status":404})
+        return jsonify({"error": "Point not found"}) , 404 
 
     task_data = task[0].payload
 
-    formatted_prompt = prompttemplate.report_prompt.format(
+    formatted_prompt = promptTemplate.report_prompt.format(
         task=task_data.get("task"),
         description=task_data.get("description"),
         requirements=task_data.get("requirements"),
@@ -353,13 +363,12 @@ def report_generator():
 
     response = llm.invoke(formatted_prompt)
     
-    parsed = stringtojson.report_response_json_converter(response.content.strip())
+    parsed = stringToJSON.report_response_json_converter(response.content.strip())
 
     return jsonify({
         "report": parsed.get("report"),
-        "score": parsed.get("score"),
-        "status": 200
-    })
+        "score": parsed.get("score")
+    }) , 200
 
 if __name__ == "__main__":
     app.run(debug=True)
