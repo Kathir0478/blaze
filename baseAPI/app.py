@@ -38,7 +38,9 @@ if not qdrant.collection_exists(collection_name=BOTS_COLLECTION):
 
 embedding_model = GoogleGenerativeAIEmbeddings(model="models/embedding-001",google_api_key=GOOGLE_API_KEY)
 
-llm = ChatGroq(temperature=0,model_name="LLaMA3-8b-8192",groq_api_key=GROQ_API_KEY)  
+rondomized_llm = ChatGroq(temperature=0.3,model_name="LLaMA3-8b-8192",groq_api_key=GROQ_API_KEY) 
+conditioned_llm = ChatGroq(temperature=0,model_name="LLaMA3-8b-8192",groq_api_key=GROQ_API_KEY) 
+
 
 splitter = RecursiveCharacterTextSplitter(chunk_size=512, chunk_overlap=128)
 
@@ -79,7 +81,7 @@ def analyze_pdf():
         question_count=question_count
     )
     
-    response = llm.invoke(formatted_prompt)
+    response = conditioned_llm.invoke(formatted_prompt)
 
     parsed = stringToJSON.analyze_pdf_json_converter(response.content.strip())
 
@@ -118,7 +120,7 @@ def technical_round():
         difficulty_level=difficulty_level
     )
 
-    response = llm.invoke(formatted_prompt)
+    response = rondomized_llm.invoke(formatted_prompt)
 
     parsed = stringToJSON.technical_round_json_converter(response.content.strip())
 
@@ -141,7 +143,7 @@ def aptitude_round():
         difficulty_level=difficulty_level
     )
 
-    response = llm.invoke(formatted_prompt)
+    response = rondomized_llm.invoke(formatted_prompt)
     
     parsed = stringToJSON.aptitude_round_json_converter(response.content.strip())
 
@@ -164,7 +166,7 @@ def problem_round():
         difficulty_rating=difficulty_rating
     )
 
-    response = llm.invoke(formatted_prompt)
+    response = rondomized_llm.invoke(formatted_prompt)
 
     parsed = stringToJSON.problem_round_json_converter(response.content.strip())
 
@@ -189,7 +191,7 @@ def validate_problem():
         language=language
     )
 
-    response = llm.invoke(formatted_prompt)
+    response = conditioned_llm.invoke(formatted_prompt)
 
     parsed= stringToJSON.validate_problem_json_converter(response.content.strip())
 
@@ -234,7 +236,7 @@ def communication_report():
         text=text
     )
 
-    response = llm.invoke(formatted_prompt)
+    response = conditioned_llm.invoke(formatted_prompt)
     
     parsed = stringToJSON.communication_report_json_converter(response.content.strip())
 
@@ -326,7 +328,7 @@ def query_chatbot():
         context=context
     )
 
-    response = llm.invoke(formatted_prompt)
+    response = rondomized_llm.invoke(formatted_prompt)
 
     parsed= stringToJSON.llm_response_json_converter(response.content.strip())
 
@@ -361,7 +363,7 @@ def report_generator():
         code_snippet=coded_snippet
     )
 
-    response = llm.invoke(formatted_prompt)
+    response = conditioned_llm.invoke(formatted_prompt)
     
     parsed = stringToJSON.report_response_json_converter(response.content.strip())
 
